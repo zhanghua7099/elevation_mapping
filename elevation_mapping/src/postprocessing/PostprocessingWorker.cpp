@@ -10,8 +10,8 @@
 
 namespace elevation_mapping {
 
-PostprocessingWorker::PostprocessingWorker(ros::NodeHandle nodeHandle)
-    : functor_(nodeHandle), work_(ioService_), thread_([this] { this->ioService_.run(); }) {}
+PostprocessingWorker::PostprocessingWorker(rclcpp::Node* node)
+    : functor_(node), work_(ioService_), thread_([this] { this->ioService_.run(); }) {}
 
 PostprocessingWorker::GridMap PostprocessingWorker::processBuffer() {
   return functor_(dataBuffer_);

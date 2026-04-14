@@ -1,34 +1,36 @@
 /*
- * ElevationMap.hpp
+ * ElevationMapping.hpp
  *
  *  Created on: Nov 12, 2013
  *      Author: Péter Fankhauser
- *	 Institute: ETH Zurich, ANYbotics
+ * Institute: ETH Zurich, ANYbotics
  */
 
 #pragma once
 
 // Grid Map
-#include <grid_map_msgs/GetGridMap.h>
-#include <grid_map_msgs/ProcessFile.h>
-#include <grid_map_msgs/SetGridMap.h>
+#include <grid_map_msgs/srv/get_grid_map.hpp>
+#include <grid_map_msgs/srv/process_file.hpp>
+#include <grid_map_msgs/srv/set_grid_map.hpp>
 
 // ROS
-#include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <message_filters/cache.h>
 #include <message_filters/subscriber.h>
-#include <ros/ros.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <std_srvs/Empty.h>
-#include <std_srvs/Trigger.h>
-#include <tf/transform_listener.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <std_srvs/srv/empty.hpp>
+#include <std_srvs/srv/trigger.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 // Eigen
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
-// Boost
-#include <boost/thread.hpp>
+// STL
+#include <memory>
+#include <thread>
 
 // Elevation Mapping
 #include "elevation_mapping/ElevationMap.hpp"
@@ -47,14 +49,12 @@ enum class InitializationMethods { PlanarFloorInitializer };
  * The elevation mapping main class. Coordinates the ROS interfaces, the timing,
  * and the data handling between the other classes.
  */
-class ElevationMapping {
+class ElevationMapping : public rclcpp::Node {
  public:
   /*!
    * Constructor.
-   *
-   * @param nodeHandle the ROS node handle.
    */
-  explicit ElevationMapping(ros::NodeHandle& nodeHandle);
+  explicit ElevationMapping(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
   /*!
    * Destructor.
@@ -63,243 +63,108 @@ class ElevationMapping {
 
   /*!
    * Callback function for new data to be added to the elevation map.
-   *
-   * @param pointCloudMsg    The point cloud to be fused with the existing data.
-   * @param publishPointCloud If true, publishes the pointcloud after updating the map.
-   * @param sensorProcessor_ The sensorProcessor to use in this callback.
    */
-  void pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& pointCloudMsg, bool publishPointCloud,
+  void pointCloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& pointCloudMsg, bool publishPointCloud,
                           const SensorProcessorBase::Ptr& sensorProcessor_);
 
   /*!
-   * Callback function for the update timer. Forces an update of the map from
-   * the robot's motion if no new measurements are received for a certain time
-   * period.
-   *
-   * @param timerEvent    The timer event.
+   * Callback function for the update timer.
    */
-  void mapUpdateTimerCallback(const ros::TimerEvent& timerEvent);
+  void mapUpdateTimerCallback();
 
   /*!
-   * Callback function for the fused map publish timer. Publishes the fused map
-   * based on configurable duration.
-   *
-   * @param timerEvent    The timer event.
+   * Callback function for the fused map publish timer.
    */
-  void publishFusedMapCallback(const ros::TimerEvent& timerEvent);
+  void publishFusedMapCallback();
 
   /*!
    * Callback function for cleaning map based on visibility ray tracing.
-   *
-   * @param timerEvent  The timer event.
    */
-  void visibilityCleanupCallback(const ros::TimerEvent& timerEvent);
+  void visibilityCleanupCallback();
 
-  /*!
-   * ROS service callback function to trigger the fusion of the entire
-   * elevation map.
-   *
-   * @param request     The ROS service request.
-   * @param response    The ROS service response.
-   * @return true if successful.
-   */
-  bool fuseEntireMapServiceCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
+  // Service callbacks
+  void fuseEntireMapServiceCallback(const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+                                    std::shared_ptr<std_srvs::srv::Empty::Response> response);
 
-  /*!
-   * ROS service callback function to return a submap of the fused elevation map.
-   *
-   * @param request     The ROS service request defining the location and size of the fused submap.
-   * @param response    The ROS service response containing the requested fused submap.
-   * @return true if successful.
-   */
-  bool getFusedSubmapServiceCallback(grid_map_msgs::GetGridMap::Request& request, grid_map_msgs::GetGridMap::Response& response);
+  void getFusedSubmapServiceCallback(const std::shared_ptr<grid_map_msgs::srv::GetGridMap::Request> request,
+                                     std::shared_ptr<grid_map_msgs::srv::GetGridMap::Response> response);
 
-  /*!
-   * ROS service callback function to return a submap of the raw elevation map.
-   *
-   * @param request     The ROS service request defining the location and size of the raw submap.
-   * @param response    The ROS service response containing the requested raw submap.
-   * @return true if successful.
-   */
-  bool getRawSubmapServiceCallback(grid_map_msgs::GetGridMap::Request& request, grid_map_msgs::GetGridMap::Response& response);
+  void getRawSubmapServiceCallback(const std::shared_ptr<grid_map_msgs::srv::GetGridMap::Request> request,
+                                   std::shared_ptr<grid_map_msgs::srv::GetGridMap::Response> response);
 
-  /*!
-   * ROS service callback function to enable updates of the elevation map.
-   *
-   * @param request     The ROS service request.
-   * @param response    The ROS service response.
-   * @return true if successful.
-   */
-  bool enableUpdatesServiceCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
+  void enableUpdatesServiceCallback(const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+                                    std::shared_ptr<std_srvs::srv::Empty::Response> response);
 
-  /*!
-   * ROS service callback function to disable updates of the elevation map.
-   *
-   * @param request     The ROS service request.
-   * @param response    The ROS service response.
-   * @return true if successful.
-   */
-  bool disableUpdatesServiceCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
+  void disableUpdatesServiceCallback(const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+                                     std::shared_ptr<std_srvs::srv::Empty::Response> response);
 
-  /*!
-   * ROS service callback function to clear all data of the elevation map.
-   *
-   * @param request     The ROS service request.
-   * @param response    The ROS service response.
-   * @return true if successful.
-   */
-  bool clearMapServiceCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
+  void clearMapServiceCallback(const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+                               std::shared_ptr<std_srvs::srv::Empty::Response> response);
 
-  /*!
-   * ROS service callback function to allow for setting the individual layers of the elevation map through a service call.
-   * The layer mask can be used to only set certain cells and not the entire map. Cells
-   * containing NAN in the mask are not set, all the others are set. If the layer mask is
-   * not supplied, the entire map will be set in the intersection of both maps. The
-   * provided map can be of different size and position than the map that will be altered.
-   *
-   * @param request    The ROS service request.
-   * @param response   The ROS service response.
-   * @return true if successful.
-   */
-  bool maskedReplaceServiceCallback(grid_map_msgs::SetGridMap::Request& request, grid_map_msgs::SetGridMap::Response& response);
+  void maskedReplaceServiceCallback(const std::shared_ptr<grid_map_msgs::srv::SetGridMap::Request> request,
+                                    std::shared_ptr<grid_map_msgs::srv::SetGridMap::Response> response);
 
-  /*!
-   * ROS service callback function to save the grid map with all layers to a ROS bag file.
-   *
-   * @param request   The ROS service request.
-   * @param response  The ROS service response.
-   * @return true if successful.
-   */
-  bool saveMapServiceCallback(grid_map_msgs::ProcessFile::Request& request, grid_map_msgs::ProcessFile::Response& response);
+  void saveMapServiceCallback(const std::shared_ptr<grid_map_msgs::srv::ProcessFile::Request> request,
+                              std::shared_ptr<grid_map_msgs::srv::ProcessFile::Response> response);
 
-  /*!
-   * ROS service callback function to load the grid map with all layers from a ROS bag file.
-   *
-   * @param request     The ROS service request.
-   * @param response    The ROS service response.
-   * @return true if successful.
-   */
-  bool loadMapServiceCallback(grid_map_msgs::ProcessFile::Request& request, grid_map_msgs::ProcessFile::Response& response);
+  void loadMapServiceCallback(const std::shared_ptr<grid_map_msgs::srv::ProcessFile::Request> request,
+                              std::shared_ptr<grid_map_msgs::srv::ProcessFile::Response> response);
 
-  /*!
-   * ROS service callback function to reload parameters from the ros parameter server.
-   *
-   * @param request     The ROS service request.
-   * @param response    The ROS service response.
-   * @return true if successful.
-   */
-  bool reloadParametersServiceCallback(std_srvs::Trigger::Request& request, std_srvs::Trigger::Response& response);
+  void reloadParametersServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                                       std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 
  private:
-  /*!
-   * Reads and verifies the ROS parameters.
-   * @param reload if enabled disables any geometric resize while reading parameters.
-   * Reloading geometry is not supported.
-   * @return true if successful.
-   */
   bool readParameters(bool reload = false);
-
-  /*!
-   * Performs the initialization procedure.
-   *
-   * @return true if successful.
-   */
   bool initialize();
-
-  /**
-   * Sets up the subscribers for both robot poses and input data.
-   */
   void setupSubscribers();
-
-  /**
-   * Sets up the services.
-   */
   void setupServices();
-
-  /**
-   * Sets up the timers.
-   */
   void setupTimers();
-
-  /*!
-   * Separate thread for all fusion service calls.
-   */
   void runFusionServiceThread();
-
-  /*!
-   * Separate thread for visibility cleanup.
-   */
   void visibilityCleanupThread();
-
-  /*!
-   * Update the elevation map from the robot motion up to a certain time.
-   *
-   * @param time    Time to which the map is updated to.
-   * @return true if successful.
-   */
-  bool updatePrediction(const ros::Time& time);
-
-  /*!
-   * Updates the location of the map to follow the tracking point. Takes care
-   * of the data handling the goes along with the relocalization.
-   *
-   * @return true if successful.
-   */
+  bool updatePrediction(const rclcpp::Time& time);
   bool updateMapLocation();
-
-  /*!
-   * Reset and start the map update timer.
-   */
   void resetMapUpdateTimer();
-
-  /*!
-   * Stop the map update timer.
-   */
   void stopMapUpdateTimer();
-
-  /*!
-   * Initializes a submap around the robot of the elevation map with a constant height.
-   */
   bool initializeElevationMap();
-
-  /*!
-   * Returns true if fusing the map is enabled.
-   */
   bool isFusingEnabled();
-
-  //! ROS nodehandle.
-  ros::NodeHandle nodeHandle_;
 
  protected:
   //! Input sources.
   InputSourceManager inputSources_;
+
   //! ROS subscribers.
-  ros::Subscriber pointCloudSubscriber_;  //!< Deprecated, use input_source instead.
-  message_filters::Subscriber<geometry_msgs::PoseWithCovarianceStamped> robotPoseSubscriber_;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointCloudSubscriber_;
+  message_filters::Subscriber<geometry_msgs::msg::PoseWithCovarianceStamped, rclcpp::Node> robotPoseSubscriber_;
 
   //! ROS service servers.
-  ros::ServiceServer fusionTriggerService_;
-  ros::ServiceServer fusedSubmapService_;
-  ros::ServiceServer rawSubmapService_;
-  ros::ServiceServer enableUpdatesService_;
-  ros::ServiceServer disableUpdatesService_;
-  ros::ServiceServer clearMapService_;
-  ros::ServiceServer maskedReplaceService_;
-  ros::ServiceServer saveMapService_;
-  ros::ServiceServer loadMapService_;
-  ros::ServiceServer reloadParametersService_;
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr fusionTriggerService_;
+  rclcpp::Service<grid_map_msgs::srv::GetGridMap>::SharedPtr fusedSubmapService_;
+  rclcpp::Service<grid_map_msgs::srv::GetGridMap>::SharedPtr rawSubmapService_;
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr enableUpdatesService_;
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr disableUpdatesService_;
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr clearMapService_;
+  rclcpp::Service<grid_map_msgs::srv::SetGridMap>::SharedPtr maskedReplaceService_;
+  rclcpp::Service<grid_map_msgs::srv::ProcessFile>::SharedPtr saveMapService_;
+  rclcpp::Service<grid_map_msgs::srv::ProcessFile>::SharedPtr loadMapService_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reloadParametersService_;
+
+  //! Callback groups for separate execution contexts.
+  rclcpp::CallbackGroup::SharedPtr fusionCallbackGroup_;
+  rclcpp::CallbackGroup::SharedPtr visibilityCleanupCallbackGroup_;
+
+  //! Executors for callback groups.
+  std::unique_ptr<rclcpp::executors::SingleThreadedExecutor> fusionServiceExecutor_;
+  std::unique_ptr<rclcpp::executors::SingleThreadedExecutor> visibilityCleanupExecutor_;
 
   //! Callback thread for the fusion services.
-  boost::thread fusionServiceThread_;
-
-  //! Callback queue for fusion service thread.
-  ros::CallbackQueue fusionServiceQueue_;
+  std::thread fusionServiceThread_;
 
   //! Cache for the robot pose messages.
-  message_filters::Cache<geometry_msgs::PoseWithCovarianceStamped> robotPoseCache_;
+  message_filters::Cache<geometry_msgs::msg::PoseWithCovarianceStamped> robotPoseCache_;
 
-  //! TF listener and broadcaster.
-  tf::TransformListener transformListener_;
+  //! TF2 buffer and listener.
+  std::shared_ptr<tf2_ros::Buffer> tfBuffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tfListener_;
 
   struct Parameters {
     //! Size of the cache for the robot pose messages.
@@ -313,7 +178,7 @@ class ElevationMapping {
     std::string trackPointFrameId_;
 
     //! ROS topics for subscriptions.
-    std::string pointCloudTopic_;  //!< Deprecated, use input_source instead.
+    std::string pointCloudTopic_;
     std::string robotPoseTopic_;
 
     //! If true, robot motion updates are ignored.
@@ -322,21 +187,20 @@ class ElevationMapping {
     //! If false, elevation mapping stops updating
     bool updatesEnabled_{true};
 
-    //! Maximum time that the map will not be updated.
-    ros::Duration maxNoUpdateDuration_;
+    //! Maximum time that the map will not be updated (seconds).
+    double maxNoUpdateDuration_{0.0};
 
-    //! Time tolerance for updating the map with data before the last update.
-    //! This is useful when having multiple sensors adding data to the map.
-    ros::Duration timeTolerance_;
+    //! Time tolerance for updating the map with data before the last update (seconds).
+    double timeTolerance_{0.0};
 
-    //! Duration for the publishing the fusing map.
-    ros::Duration fusedMapPublishTimerDuration_;
+    //! Duration for the publishing the fusing map (seconds).
+    double fusedMapPublishTimerDuration_{0.0};
 
     //! If map is fused after every change for debugging/analysis purposes.
     bool isContinuouslyFusing_{false};
 
-    //! Duration for the raytracing cleanup timer.
-    ros::Duration visibilityCleanupTimerDuration_;
+    //! Duration for the raytracing cleanup timer (seconds).
+    double visibilityCleanupTimerDuration_{0.0};
 
     //! Name of the mask layer used in the masked replace service
     std::string maskedReplaceServiceMaskLayerName_;
@@ -374,22 +238,19 @@ class ElevationMapping {
   RobotMotionMapUpdater robotMotionMapUpdater_;
 
   //! Timer for the robot motion update.
-  ros::Timer mapUpdateTimer_;
+  rclcpp::TimerBase::SharedPtr mapUpdateTimer_;
 
   //! Time of the last point cloud update.
-  ros::Time lastPointCloudUpdateTime_;
+  rclcpp::Time lastPointCloudUpdateTime_;
 
   //! Timer for publishing the fused map.
-  ros::Timer fusedMapPublishTimer_;
+  rclcpp::TimerBase::SharedPtr fusedMapPublishTimer_;
 
   //! Timer for the raytracing cleanup.
-  ros::Timer visibilityCleanupTimer_;
-
-  //! Callback queue for raytracing cleanup thread.
-  ros::CallbackQueue visibilityCleanupQueue_;
+  rclcpp::TimerBase::SharedPtr visibilityCleanupTimer_;
 
   //! Callback thread for raytracing cleanup.
-  boost::thread visibilityCleanupThread_;
+  std::thread visibilityCleanupThread_;
 
   //! Becomes true when corresponding poses and point clouds can be found
   bool receivedFirstMatchingPointcloudAndPose_;

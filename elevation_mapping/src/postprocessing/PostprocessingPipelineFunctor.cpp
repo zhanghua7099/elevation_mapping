@@ -4,8 +4,6 @@
  *  Created on: Sep. 14, 2020
  *      Author: Magnus Gärtner
  *   Institute: ETH Zurich, ANYbotics
- *
- *  Note. Large parts are adopted from grid_map_demos/FiltersDemo.cpp.
  */
 
 #include <grid_map_ros/grid_map_ros.hpp>
@@ -14,17 +12,16 @@
 
 namespace elevation_mapping {
 
-PostprocessingPipelineFunctor::PostprocessingPipelineFunctor(ros::NodeHandle& nodeHandle)
-    : nodeHandle_(nodeHandle), filterChain_("grid_map::GridMap"), filterChainConfigured_(false) {
-  // TODO (magnus) Add logic when setting up failed. What happens actually if it is not configured?
+PostprocessingPipelineFunctor::PostprocessingPipelineFunctor(rclcpp::Node* node)
+    : node_(node), filterChain_("grid_map::GridMap"), filterChainConfigured_(false) {
   readParameters();
   const Parameters parameters{parameters_.getData()};
-  publisher_ = nodeHandle_.advertise<grid_map_msgs::GridMap>(parameters.outputTopic_, 1, true);
+  publisher_ = node_->create_publisher<grid_map_msgs::msg::GridMap>(parameters.outputTopic_, 1);
 
-  // Setup filter chain.
-  if (!nodeHandle.hasParam(parameters.filterChainParametersName_) ||
-      !filterChain_.configure(parameters.filterChainParametersName_, nodeHandle)) {
-    ROS_WARN("Could not configure the filter chain. Will publish the raw elevation map without postprocessing!");
+  if (!node_->has_parameter(parameters.filterChainParametersName_) ||
+      !filterChain_.configure(parameters.filterChainParametersName_, node_->get_node_logging_interface(),
+                              node_->get_node_parameters_interface())) {
+    RCLCPP_WARN(node_->get_logger(), "Could not configure the filter chain. Will publish the raw elevation map without postprocessing!");
     return;
   }
 
@@ -35,20 +32,26 @@ PostprocessingPipelineFunctor::~PostprocessingPipelineFunctor() = default;
 
 void PostprocessingPipelineFunctor::readParameters() {
   Parameters parameters;
-  nodeHandle_.param("output_topic", parameters.outputTopic_, std::string("elevation_map_raw"));
-  nodeHandle_.param("postprocessor_pipeline_name", parameters.filterChainParametersName_, std::string("postprocessor_pipeline"));
+  if (!node_->has_parameter("output_topic")) {
+    node_->declare_parameter("output_topic", std::string("elevation_map_raw"));
+  }
+  if (!node_->has_parameter("postprocessor_pipeline_name")) {
+    node_->declare_parameter("postprocessor_pipeline_name", std::string("postprocessor_pipeline"));
+  }
+  parameters.outputTopic_ = node_->get_parameter("output_topic").as_string();
+  parameters.filterChainParametersName_ = node_->get_parameter("postprocessor_pipeline_name").as_string();
   parameters_.setData(parameters);
 }
 
 grid_map::GridMap PostprocessingPipelineFunctor::operator()(GridMap& inputMap) {
-  if (not filterChainConfigured_) {
-    ROS_WARN_ONCE("No postprocessing pipeline was configured. Forwarding the raw elevation map!");
+  if (!filterChainConfigured_) {
+    RCLCPP_WARN_ONCE(node_->get_logger(), "No postprocessing pipeline was configured. Forwarding the raw elevation map!");
     return inputMap;
   }
 
   grid_map::GridMap outputMap;
-  if (not filterChain_.update(inputMap, outputMap)) {
-    ROS_ERROR("Could not perform the grid map filter chain! Forwarding the raw elevation map!");
+  if (!filterChain_.update(inputMap, outputMap)) {
+    RCLCPP_ERROR(node_->get_logger(), "Could not perform the grid map filter chain! Forwarding the raw elevation map!");
     return inputMap;
   }
 
@@ -56,15 +59,14 @@ grid_map::GridMap PostprocessingPipelineFunctor::operator()(GridMap& inputMap) {
 }
 
 void PostprocessingPipelineFunctor::publish(const GridMap& gridMap) const {
-  // Publish filtered output grid map.
-  grid_map_msgs::GridMap outputMessage;
+  grid_map_msgs::msg::GridMap outputMessage;
   grid_map::GridMapRosConverter::toMessage(gridMap, outputMessage);
-  publisher_.publish(outputMessage);
-  ROS_DEBUG("Elevation map raw has been published.");
+  publisher_->publish(outputMessage);
+  RCLCPP_DEBUG(node_->get_logger(), "Elevation map raw has been published.");
 }
 
 bool PostprocessingPipelineFunctor::hasSubscribers() const {
-  return publisher_.getNumSubscribers() > 0;
+  return publisher_->get_subscription_count() > 0;
 }
 
 }  // namespace elevation_mapping
