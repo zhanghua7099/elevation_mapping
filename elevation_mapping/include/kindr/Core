@@ -1,0 +1,160 @@
+#pragma once
+
+#include <cmath>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+
+namespace kindr {
+
+class Position3D {
+ public:
+  Position3D() : vector_(Eigen::Vector3d::Zero()) {}
+  Position3D(double x, double y, double z) : vector_(x, y, z) {}
+  explicit Position3D(const Eigen::Vector3d& vector) : vector_(vector) {}
+
+  double& x() { return vector_.x(); }
+  double& y() { return vector_.y(); }
+  double& z() { return vector_.z(); }
+  double x() const { return vector_.x(); }
+  double y() const { return vector_.y(); }
+  double z() const { return vector_.z(); }
+
+  Eigen::Vector3d& vector() { return vector_; }
+  const Eigen::Vector3d& vector() const { return vector_; }
+
+  Eigen::Vector3d& toImplementation() { return vector_; }
+  const Eigen::Vector3d& toImplementation() const { return vector_; }
+
+  Position3D& operator=(const Eigen::Vector3d& vector) {
+    vector_ = vector;
+    return *this;
+  }
+
+  Position3D operator+(const Position3D& other) const { return Position3D(vector_ + other.vector_); }
+  Position3D operator-(const Position3D& other) const { return Position3D(vector_ - other.vector_); }
+
+ private:
+  Eigen::Vector3d vector_;
+};
+
+class RotationVectorPD;
+class EulerAnglesZyxPD;
+
+class RotationMatrixD {
+ public:
+  RotationMatrixD() : matrix_(Eigen::Matrix3d::Identity()) {}
+  explicit RotationMatrixD(const Eigen::Matrix3d& matrix) : matrix_(matrix) {}
+  explicit RotationMatrixD(const RotationVectorPD& rotationVector);
+  explicit RotationMatrixD(const EulerAnglesZyxPD& eulerAngles);
+
+  void setIdentity() { matrix_.setIdentity(); }
+  void setMatrix(const Eigen::Matrix3d& matrix) { matrix_ = matrix; }
+
+  Eigen::Matrix3d& matrix() { return matrix_; }
+  const Eigen::Matrix3d& matrix() const { return matrix_; }
+
+  Eigen::Matrix3d& toImplementation() { return matrix_; }
+  const Eigen::Matrix3d& toImplementation() const { return matrix_; }
+
+  RotationMatrixD transposed() const { return RotationMatrixD(matrix_.transpose()); }
+  RotationMatrixD inverted() const { return RotationMatrixD(matrix_.transpose()); }
+
+  RotationMatrixD operator*(const RotationMatrixD& other) const { return RotationMatrixD(matrix_ * other.matrix_); }
+
+  Eigen::Vector3d inverseRotate(const Eigen::Vector3d& vector) const { return matrix_.transpose() * vector; }
+  Position3D inverseRotate(const Position3D& position) const { return Position3D(matrix_.transpose() * position.vector()); }
+
+ private:
+  Eigen::Matrix3d matrix_;
+};
+
+using RotationMatrixPD = RotationMatrixD;
+using RotationMatrix = RotationMatrixD;
+using RotationMatrixP = RotationMatrixD;
+
+class RotationVectorPD {
+ public:
+  RotationVectorPD() : vector_(Eigen::Vector3d::Zero()) {}
+  RotationVectorPD(double x, double y, double z) : vector_(x, y, z) {}
+  explicit RotationVectorPD(const RotationMatrixD& rotationMatrix) {
+    const Eigen::AngleAxisd angleAxis(rotationMatrix.matrix());
+    vector_ = angleAxis.axis() * angleAxis.angle();
+  }
+
+  Eigen::Vector3d& vector() { return vector_; }
+  const Eigen::Vector3d& vector() const { return vector_; }
+
+ private:
+  Eigen::Vector3d vector_;
+};
+
+class EulerAnglesZyxPD {
+ public:
+  EulerAnglesZyxPD() : yaw_(0.0), pitch_(0.0), roll_(0.0) {}
+  explicit EulerAnglesZyxPD(const RotationMatrixD& rotationMatrix) {
+    const Eigen::Matrix3d& matrix = rotationMatrix.matrix();
+    yaw_ = std::atan2(matrix(1, 0), matrix(0, 0));
+    pitch_ = std::atan2(-matrix(2, 0), std::sqrt(matrix(2, 1) * matrix(2, 1) + matrix(2, 2) * matrix(2, 2)));
+    roll_ = std::atan2(matrix(2, 1), matrix(2, 2));
+  }
+
+  double yaw() const { return yaw_; }
+  double pitch() const { return pitch_; }
+  double roll() const { return roll_; }
+
+ private:
+  double yaw_;
+  double pitch_;
+  double roll_;
+};
+
+class HomTransformQuatD {
+ public:
+  HomTransformQuatD() = default;
+  HomTransformQuatD(const Position3D& position, const RotationMatrixD& rotation) : position_(position), rotation_(rotation) {}
+
+  Position3D& getPosition() { return position_; }
+  const Position3D& getPosition() const { return position_; }
+
+  RotationMatrixD& getRotation() { return rotation_; }
+  const RotationMatrixD& getRotation() const { return rotation_; }
+
+  void setPosition(const Position3D& position) { position_ = position; }
+  void setRotation(const RotationMatrixD& rotation) { rotation_ = rotation; }
+
+  Position3D transform(const Position3D& position) const {
+    return Position3D(rotation_.matrix() * position.vector() + position_.vector());
+  }
+
+ private:
+  Position3D position_;
+  RotationMatrixD rotation_;
+};
+
+using HomogeneousTransformationPosition3RotationQuaternionD = HomTransformQuatD;
+using Velocity3D = Position3D;
+
+template <typename Scalar>
+inline Eigen::Matrix<Scalar, 3, 3> getSkewMatrixFromVector(const Eigen::Matrix<Scalar, 3, 1>& vector) {
+  Eigen::Matrix<Scalar, 3, 3> skewMatrix;
+  skewMatrix << 0.0, -vector.z(), vector.y(), vector.z(), 0.0, -vector.x(), -vector.y(), vector.x(), 0.0;
+  return skewMatrix;
+}
+
+inline RotationMatrixD::RotationMatrixD(const RotationVectorPD& rotationVector) {
+  const Eigen::Vector3d vector = rotationVector.vector();
+  const double angle = vector.norm();
+  if (angle == 0.0) {
+    matrix_.setIdentity();
+    return;
+  }
+  matrix_ = Eigen::AngleAxisd(angle, vector / angle).toRotationMatrix();
+}
+
+inline RotationMatrixD::RotationMatrixD(const EulerAnglesZyxPD& eulerAngles) {
+  matrix_ = Eigen::AngleAxisd(eulerAngles.yaw(), Eigen::Vector3d::UnitZ()).toRotationMatrix() *
+            Eigen::AngleAxisd(eulerAngles.pitch(), Eigen::Vector3d::UnitY()).toRotationMatrix() *
+            Eigen::AngleAxisd(eulerAngles.roll(), Eigen::Vector3d::UnitX()).toRotationMatrix();
+}
+
+}  // namespace kindr

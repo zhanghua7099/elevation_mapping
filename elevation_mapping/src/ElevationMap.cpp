@@ -518,9 +518,8 @@ bool ElevationMap::publishFusedElevationMap() {
   grid_map::GridMap fusedMapCopy = fusedMap_;
   scopedLock.unlock();
   fusedMapCopy.add("uncertainty_range", fusedMapCopy.get("upper_bound") - fusedMapCopy.get("lower_bound"));
-  grid_map_msgs::msg::GridMap message;
-  grid_map::GridMapRosConverter::toMessage(fusedMapCopy, message);
-  elevationMapFusedPublisher_->publish(message);
+  auto message = grid_map::GridMapRosConverter::toMessage(fusedMapCopy);
+  elevationMapFusedPublisher_->publish(*message);
   RCLCPP_DEBUG(node_->get_logger(), "Elevation map (fused) has been published.");
   return true;
 }
@@ -539,9 +538,8 @@ bool ElevationMap::publishVisibilityCleanupMap() {
   visibilityCleanupMapCopy.erase("horizontal_variance_xy");
   visibilityCleanupMapCopy.erase("color");
   visibilityCleanupMapCopy.erase("time");
-  grid_map_msgs::msg::GridMap message;
-  grid_map::GridMapRosConverter::toMessage(visibilityCleanupMapCopy, message);
-  visibilityCleanupMapPublisher_->publish(message);
+  auto message = grid_map::GridMapRosConverter::toMessage(visibilityCleanupMapCopy);
+  visibilityCleanupMapPublisher_->publish(*message);
   RCLCPP_DEBUG(node_->get_logger(), "Visibility cleanup map has been published.");
   return true;
 }

@@ -3,7 +3,13 @@
 
 #include <gtest/gtest.h>
 
-#include <message_logger/message_logger.hpp>
+#ifndef MELO_DEBUG
+#define MELO_DEBUG(...) do { } while (0)
+#endif
+
+#ifndef MELO_DEBUG_STREAM
+#define MELO_DEBUG_STREAM(...) do { } while (0)
+#endif
 
 #include "elevation_mapping/ThreadSafeDataWrapper.hpp"
 
@@ -27,8 +33,10 @@ class DataAccessFixture : public ::testing::Test {
 
   // Setup two concurrent reading threads.
   void readerThreadFunction(const char* threadName) {
+    (void)threadName;
     for (int i{0}; i < numReads_; i++) {
       Parameters params{parameters_.getData()};
+      (void)params;
       sleepInMilliseconds(30);
       MELO_DEBUG_STREAM(threadName << " read: [" << params.myDynamicParameter_[0] << ", " << params.myDynamicParameter_[1] << "]\n");
     }
@@ -50,6 +58,7 @@ class DataAccessFixture : public ::testing::Test {
    * @param idx Which parameter index to update.
    */
   void malfunctioningWrite(const char* threadName, int idx) {
+    (void)threadName;
     Parameters updatedParameters{parameters_.getData()};
 
     updatedParameters.myDynamicParameter_[idx]++;
@@ -75,6 +84,7 @@ class DataAccessFixture : public ::testing::Test {
    * @return the written value.
    */
   void functioningWrite(const char* threadName, int idx) {
+    (void)threadName;
     auto [updatedParameters, parameterGuard]{parameters_.getDataToWrite()};
 
     updatedParameters.myDynamicParameter_[idx]++;

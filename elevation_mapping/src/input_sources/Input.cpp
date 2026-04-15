@@ -62,7 +62,7 @@ bool Input::configureSensorProcessor(const std::string& name, const std::string&
   } else if (sensorType == "perfect") {
     sensorProcessor_ = std::make_unique<PerfectSensorProcessor>(node_, generalSensorProcessorParameters, tfBuffer);
   } else {
-    RCLCPP_ERROR(node_->get_logger(), "The sensor type %s is not available.", sensorType.c_str());
+    RCLCPP_ERROR(node_->get_logger(), "The sensor type %s for input '%s' is not available.", sensorType.c_str(), name.c_str());
     return false;
   }
 

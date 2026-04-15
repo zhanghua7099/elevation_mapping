@@ -72,7 +72,7 @@ bool RobotMotionMapUpdater::update(ElevationMap& map, const Pose& robotPose, con
       if (std::isfinite(height)) {
         grid_map::Position position;
         map.getRawGridMap().getPosition({i, j}, position);
-        cellPosition = {position.x(), position.y(), height};
+        cellPosition = kindr::Position3D(position.x(), position.y(), height);
 
         const Eigen::Matrix3d rotationJacobian =
             -kindr::getSkewMatrixFromVector((positionRobotToMap + cellPosition).vector()) * mapToPreviousRobotRotationInverted.matrix();

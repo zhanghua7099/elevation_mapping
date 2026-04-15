@@ -10,7 +10,6 @@
   <exec_depend>rviz2</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
-  <ament_export_dependencies>ament_cmake</ament_export_dependencies>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

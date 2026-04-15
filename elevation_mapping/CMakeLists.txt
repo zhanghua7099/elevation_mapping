@@ -10,7 +10,8 @@ find_package(rclcpp REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_eigen REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
-find_package(pcl_ros REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common filters io)
+find_package(pcl_conversions REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -19,8 +20,6 @@ find_package(message_filters REQUIRED)
 find_package(grid_map_ros REQUIRED)
 find_package(grid_map_msgs REQUIRED)
 find_package(grid_map_core REQUIRED)
-find_package(kindr REQUIRED)
-find_package(kindr_ros REQUIRED)
 find_package(filters REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -35,13 +34,19 @@ add_library(${PROJECT_NAME}_pcl_types
 )
 ament_target_dependencies(${PROJECT_NAME}_pcl_types
   rclcpp
-  pcl_ros
+  pcl_conversions
   sensor_msgs
+  grid_map_core
 )
 target_include_directories(${PROJECT_NAME}_pcl_types PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   ${EIGEN3_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
+)
+target_compile_options(${PROJECT_NAME}_pcl_types PRIVATE ${PCL_CXX_FLAGS})
+target_link_libraries(${PROJECT_NAME}_pcl_types
+  ${PCL_LIBRARIES}
 )
 
 add_library(${PROJECT_NAME}_library
@@ -64,14 +69,17 @@ target_include_directories(${PROJECT_NAME}_library PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   ${EIGEN3_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
 )
+
+target_compile_options(${PROJECT_NAME}_library PRIVATE ${PCL_CXX_FLAGS})
 
 ament_target_dependencies(${PROJECT_NAME}_library
   rclcpp
   tf2_ros
   tf2_eigen
   tf2_geometry_msgs
-  pcl_ros
+  pcl_conversions
   sensor_msgs
   std_srvs
   std_msgs
@@ -80,14 +88,12 @@ ament_target_dependencies(${PROJECT_NAME}_library
   grid_map_ros
   grid_map_msgs
   grid_map_core
-  kindr_ros
   filters
 )
 
 target_link_libraries(${PROJECT_NAME}_library
   ${PROJECT_NAME}_pcl_types
   pthread
-  kindr::kindr
 )
 
 ##############

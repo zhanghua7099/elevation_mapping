@@ -9,6 +9,7 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include <grid_map_msgs/msg/grid_map.hpp>
 #include <pcl/PCLPointCloud2.h>
@@ -77,7 +78,7 @@ void ElevationMapping::setupSubscribers() {
         [this](const sensor_msgs::msg::PointCloud2::ConstSharedPtr& msg) { pointCloudCallback(msg, true, sensorProcessor_); });
   }
   if (configuredInputSources) {
-    inputSources_.registerCallbacks(*this, make_pair("pointcloud", &ElevationMapping::pointCloudCallback));
+    inputSources_.registerCallbacks(*this, std::make_pair("pointcloud", &ElevationMapping::pointCloudCallback));
   }
 
   if (!parameters.robotPoseTopic_.empty()) {
@@ -94,19 +95,19 @@ void ElevationMapping::setupServices() {
       "trigger_fusion",
       [this](const std::shared_ptr<std_srvs::srv::Empty::Request> req,
              std::shared_ptr<std_srvs::srv::Empty::Response> res) { fuseEntireMapServiceCallback(req, res); },
-      rmw_qos_profile_services_default, fusionCallbackGroup_);
+      rclcpp::ServicesQoS(), fusionCallbackGroup_);
 
   fusedSubmapService_ = this->create_service<grid_map_msgs::srv::GetGridMap>(
       "get_submap",
       [this](const std::shared_ptr<grid_map_msgs::srv::GetGridMap::Request> req,
              std::shared_ptr<grid_map_msgs::srv::GetGridMap::Response> res) { getFusedSubmapServiceCallback(req, res); },
-      rmw_qos_profile_services_default, fusionCallbackGroup_);
+      rclcpp::ServicesQoS(), fusionCallbackGroup_);
 
   rawSubmapService_ = this->create_service<grid_map_msgs::srv::GetGridMap>(
       "get_raw_submap",
       [this](const std::shared_ptr<grid_map_msgs::srv::GetGridMap::Request> req,
              std::shared_ptr<grid_map_msgs::srv::GetGridMap::Response> res) { getRawSubmapServiceCallback(req, res); },
-      rmw_qos_profile_services_default, fusionCallbackGroup_);
+      rclcpp::ServicesQoS(), fusionCallbackGroup_);
 
   clearMapService_ = this->create_service<std_srvs::srv::Empty>(
       "clear_map", [this](const std::shared_ptr<std_srvs::srv::Empty::Request> req,
@@ -576,18 +577,17 @@ void ElevationMapping::getFusedSubmapServiceCallback(const std::shared_ptr<grid_
   map_.fuseArea(requestedSubmapPosition, requestedSubmapLength);
 
   bool isSuccess{false};
-  grid_map::Index index;
-  grid_map::GridMap subMap = map_.getFusedGridMap().getSubmap(requestedSubmapPosition, requestedSubmapLength, index, isSuccess);
+  grid_map::GridMap subMap = map_.getFusedGridMap().getSubmap(requestedSubmapPosition, requestedSubmapLength, isSuccess);
   scopedLock.unlock();
 
   if (request->layers.empty()) {
-    grid_map::GridMapRosConverter::toMessage(subMap, response->map);
+    response->map = *grid_map::GridMapRosConverter::toMessage(subMap);
   } else {
     std::vector<std::string> layers;
     for (const std::string& layer : request->layers) {
       layers.push_back(layer);
     }
-    grid_map::GridMapRosConverter::toMessage(subMap, layers, response->map);
+    response->map = *grid_map::GridMapRosConverter::toMessage(subMap, layers);
   }
 
   RCLCPP_DEBUG(this->get_logger(), "Elevation submap responded with timestamp %f.", map_.getTimeOfLastFusion().seconds());
@@ -602,18 +602,17 @@ void ElevationMapping::getRawSubmapServiceCallback(const std::shared_ptr<grid_ma
   boost::recursive_mutex::scoped_lock scopedLock(map_.getRawDataMutex());
 
   bool isSuccess{false};
-  grid_map::Index index;
-  grid_map::GridMap subMap = map_.getRawGridMap().getSubmap(requestedSubmapPosition, requestedSubmapLength, index, isSuccess);
+  grid_map::GridMap subMap = map_.getRawGridMap().getSubmap(requestedSubmapPosition, requestedSubmapLength, isSuccess);
   scopedLock.unlock();
 
   if (request->layers.empty()) {
-    grid_map::GridMapRosConverter::toMessage(subMap, response->map);
+    response->map = *grid_map::GridMapRosConverter::toMessage(subMap);
   } else {
     std::vector<std::string> layers;
     for (const std::string& layer : request->layers) {
       layers.push_back(layer);
     }
-    grid_map::GridMapRosConverter::toMessage(subMap, layers, response->map);
+    response->map = *grid_map::GridMapRosConverter::toMessage(subMap, layers);
   }
 }
 

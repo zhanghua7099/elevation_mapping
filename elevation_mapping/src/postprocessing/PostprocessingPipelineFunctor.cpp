@@ -59,9 +59,8 @@ grid_map::GridMap PostprocessingPipelineFunctor::operator()(GridMap& inputMap) {
 }
 
 void PostprocessingPipelineFunctor::publish(const GridMap& gridMap) const {
-  grid_map_msgs::msg::GridMap outputMessage;
-  grid_map::GridMapRosConverter::toMessage(gridMap, outputMessage);
-  publisher_->publish(outputMessage);
+  auto outputMessage = grid_map::GridMapRosConverter::toMessage(gridMap);
+  publisher_->publish(*outputMessage);
   RCLCPP_DEBUG(node_->get_logger(), "Elevation map raw has been published.");
 }
 

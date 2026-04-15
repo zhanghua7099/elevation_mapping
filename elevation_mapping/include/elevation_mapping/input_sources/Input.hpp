@@ -81,9 +81,11 @@ class Input {
 template <typename MsgT>
 void Input::registerCallback(ElevationMapping& map, CallbackT<MsgT> callback) {
   const Parameters parameters{parameters_.getData()};
-  subscriber_ = node_->create_subscription<MsgT>(
-      parameters.topic_, parameters.queueSize_,
-      std::bind(callback, std::ref(map), std::placeholders::_1, parameters.publishOnUpdate_, std::ref(sensorProcessor_)));
+  subscriber_ = node_->create_subscription<MsgT>(parameters.topic_, parameters.queueSize_,
+                                                  [this, &map, callback, publishOnUpdate = parameters.publishOnUpdate_](
+                                                      const std::shared_ptr<const MsgT>& message) {
+                                                    (map.*callback)(message, publishOnUpdate, sensorProcessor_);
+                                                  });
   RCLCPP_INFO(node_->get_logger(), "Subscribing to %s: %s, queue_size: %i.", parameters.type_.c_str(), parameters.topic_.c_str(),
               parameters.queueSize_);
 }
