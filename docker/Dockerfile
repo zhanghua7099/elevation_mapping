@@ -62,7 +62,8 @@ RUN apt-get -y install build-essential \
 	libglu1-mesa-dev \
 	libatlas-base-dev \
 	libsuitesparse-dev \
-	libeigen3-dev
+	libeigen3-dev \
+	ros-jazzy-imu-filter-madgwick
 
 RUN apt -y install ros-jazzy-rtabmap-ros
 RUN rm -rf /var/lib/apt/lists/*
