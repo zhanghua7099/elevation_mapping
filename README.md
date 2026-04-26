@@ -1,5 +1,23 @@
 # Robot-Centric Elevation Mapping
 
+## Docker Environment
+
+Pull the docker image
+```
+# Build the Docker image locally
+docker build -t elevation-ros-jazzy -f docker/Dockerfile .
+bash docker/run_container_local.sh
+
+# Or pull from ghcr.io
+docker pull ghcr.io/zhanghua7099/elevation-ros-jazzy:latest
+bash docker/run_container_ghcr.sh
+```
+
+Build this elevation mapping.
+```
+colcon build --symlink-install
+```
+
 > [!NOTE]
 > **Elevation Mapping** is no longer actively maintained.  
 
