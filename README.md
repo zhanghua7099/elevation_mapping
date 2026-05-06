@@ -82,7 +82,7 @@ The robot-centric elevation mapping methods used in this software are described 
 
 ### Dependencies
 
-This software is built on the Robotic Operating System ([ROS]), which needs to be [installed](http://wiki.ros.org) first. Additionally, the Robot-Centric Elevation Mapping depends on following software:
+This software is built on ROS 2, which needs to be installed first. Additionally, the Robot-Centric Elevation Mapping depends on following software:
 
 - [Grid Map](https://github.com/anybotics/grid_map) (grid map library for mobile robots)
 - [kindr](http://github.com/anybotics/kindr) (kinematics and dynamics library for robotics),
@@ -93,62 +93,44 @@ This software is built on the Robotic Operating System ([ROS]), which needs to b
 
 ### Building
 
-In order to install the Robot-Centric Elevation Mapping, clone the latest version from this repository into your catkin workspace and compile the package using ROS.
+In order to install the Robot-Centric Elevation Mapping, clone the latest version from this repository into a ROS 2 workspace and build it with `colcon`.
 
-    cd catkin_workspace/src
+    cd ros2_ws/src
     git clone https://github.com/anybotics/elevation_mapping.git
     cd ../
-    catkin config --cmake-args -DCMAKE_BUILD_TYPE=Release
-    catkin build
+    rosdep install --from-paths src --ignore-src -r -y
+    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 
 ### Unit Tests
 
 Build tests with
-    
-    roscd elevation_mapping
-    catkin build --catkin-make-args run_tests -- --this
-   
-Run the tests with
-    
-     rostest elevation_mapping elevation_mapping.test -t
+
+    colcon test --packages-select elevation_mapping
+    colcon test-result --verbose
     
 
 ## Basic Usage
 
 In order to get the Robot-Centric Elevation Mapping to run with your robot, you will need to adapt a few parameters. It is the easiest if duplicate and adapt all the parameter files that you need to change from the `elevation_mapping_demos` package (e.g. the `simple_demo` example). These are specifically the parameter files in `config` and the launch file from the `launch` folder.
 
-### TurtleBot3 Waffle Simulation
+### ROS 2 Demos
 
-A running example is provided, making use of the Turtlebot3 simulation environment. This example can be used to test elevation mapping, as a starting point for further integration.
+The demo package now ships ROS 2 Python launch files only. A minimal setup can be started with:
 
-To start with, the Turtlebot3 simulation dependencies need to be installed:
-
-    sudo apt install ros-melodic-turtlebot3*
-
-The elevation mapping demo together with the turtlebot3 simulation can be started with
-
-    roslaunch elevation_mapping_demos turtlesim3_waffle_demo.launch
-
-To control the robot with a keyboard, a new terminal window needs to be opened (remember to source your ROS environment). Then run
-
-    export TURTLEBOT3_MODEL=waffle
-    roslaunch turtlebot3_teleop turtlebot3_teleop_key.launch
-
-Velocity inputs can be sent to the robot by pressing the keys `a`, `w`,`d`, `x`. To stop the robot completely, press `s`.
-
-### Simple Demo & Ground Truth Demo
-
-A .ply is published as static pointcloud, elevation_mapping subscribes to it and publishes the elevation map. You can visualize it through rviz. 
-For visualization, select `/elevation_mapping/elevation_map_raw`. 
-
-**Note**. You might need to toggle the visibility of the grid_map_plugin to visualize it. 
 ```bash
-roslaunch elevation_mapping_demos ground_truth_demo.launch
+ros2 launch elevation_mapping_demos simple_demo.launch.py
 ```
 
-While ground truth demo estimates the height in map frame, simple demo sets up a more realistic deployment scenario. Here, the elevation_map is configured to track a base frame.
-To get started, we suggest to play around and also visualize other published topics, such as `/elevation_mapping/elevation_map_raw` and change the height layer to another layer, e.g `elevation_inpainted`.
+For RealSense-based demos, use one of:
+
+```bash
+ros2 launch elevation_mapping_demos realsense_elevation_mapping_static.launch.py
+ros2 launch elevation_mapping_demos realsense_elevation_mapping_rtabmap_rgbd.launch.py
+ros2 launch elevation_mapping_demos realsense_elevation_mapping_rtabmap_rgbd_imu.launch.py
+```
+
+To get started, we suggest visualizing published topics such as `/elevation_mapping/elevation_map_raw` and changing the height layer to another layer, e.g `elevation_inpainted`.
 ## Nodes
 
 ### Node: elevation_mapping
@@ -166,7 +148,7 @@ This is the main Robot-Centric Elevation Mapping node. It uses the distance sens
 
     The robot pose and covariance.
 
-* **`/tf`** ([tf/tfMessage])
+* **`/tf`** ([tf2_msgs/TFMessage])
 
     The transformation tree.
 
@@ -188,31 +170,31 @@ This is the main Robot-Centric Elevation Mapping node. It uses the distance sens
 
     Trigger the fusing process for the entire elevation map and publish it. For example, you can trigger the map fusion step from the console with
 
-        rosservice call /elevation_mapping/trigger_fusion
+        ros2 service call /elevation_mapping/trigger_fusion std_srvs/srv/Empty {}
 
 * **`get_submap`** ([grid_map_msgs/GetGridMap])
 
     Get a fused elevation submap for a requested position and size. For example, you can get the fused elevation submap at position (-0.5, 0.0) and size (0.5, 1.2) described in the odom frame and save it to a text file form the console with
 
-        rosservice call -- /elevation_mapping/get_submap odom -0.5 0.0 0.5 1.2 []
+        ros2 service call /elevation_mapping/get_submap grid_map_msgs/srv/GetGridMap "{frame_id: odom, position_x: -0.5, position_y: 0.0, length_x: 0.5, length_y: 1.2, layers: []}"
 
 * **`get_raw_submap`** ([grid_map_msgs/GetGridMap])
 
     Get a raw elevation submap for a requested position and size. For example, you can get the raw elevation submap at position (-0.5, 0.0) and size (0.5, 1.2) described in the odom frame and save it to a text file form the console with
 
-        rosservice call -- /elevation_mapping/get_raw_submap odom -0.5 0.0 0.5 1.2 []
+        ros2 service call /elevation_mapping/get_raw_submap grid_map_msgs/srv/GetGridMap "{frame_id: odom, position_x: -0.5, position_y: 0.0, length_x: 0.5, length_y: 1.2, layers: []}"
 
 * **`clear_map`** ([std_srvs/Empty])
 
     Initiates clearing of the entire map for resetting purposes. Trigger the map clearing with
 
-        rosservice call /elevation_mapping/clear_map
+        ros2 service call /elevation_mapping/clear_map std_srvs/srv/Empty {}
 
 * **`masked_replace`** ([grid_map_msgs/SetGridMap])
 
     Allows for setting the individual layers of the elevation map through a service call. The layer mask can be used to only set certain cells and not the entire map. Cells containing NAN in the mask are not set, all the others are set. If the layer mask is not supplied, the entire map will be set in the intersection of both maps. The provided map can be of different size and position than the map that will be altered. An example service call to set some cells marked with a mask in the elevation layer to 0.5 is
 
-        rosservice call /elevation_mapping/masked_replace "map:
+        ros2 service call /elevation_mapping/masked_replace grid_map_msgs/srv/SetGridMap "{map:
           info:
             header:
               seq: 3
@@ -240,37 +222,37 @@ This is the main Robot-Centric Elevation Mapping node. It uses the distance sens
               data_offset: 0
             data: [0, 0, 0, .NAN, .NAN, .NAN, 0, 0, 0]
           outer_start_index: 0
-          inner_start_index: 0"
+          inner_start_index: 0}"
 
 * **`save_map`** ([grid_map_msgs/ProcessFile])
 
     Saves the current fused grid map and raw grid map to rosbag files. Field `topic_name` must be a base name, i.e. no leading slash character (/). If field `topic_name` is empty, then `elevation_map` is used per default. Example with default topic name
 
-        rosservice call /elevation_mapping/save_map "file_path: '/home/integration/elevation_map.bag' topic_name: ''"
+        ros2 service call /elevation_mapping/save_map grid_map_msgs/srv/ProcessFile "{file_path: '/home/integration/elevation_map.bag', topic_name: ''}"
 
 * **`load_map`** ([grid_map_msgs/ProcessFile])
 
     Loads the fused grid map and raw grid map from rosbag files. Field `topic_name` must be a base name, i.e. no leading slash character (/). If field `topic_name` is empty, then `elevation_map` is used per default. Example with default topic name
 
-        rosservice call /elevation_mapping/load_map "file_path: '/home/integration/elevation_map.bag' topic_name: ''"
+        ros2 service call /elevation_mapping/load_map grid_map_msgs/srv/ProcessFile "{file_path: '/home/integration/elevation_map.bag', topic_name: ''}"
 
 * **`reload_parameters`** ([std_srvs/Trigger])
 
   Triggers a re-load of all elevation mapping parameters, can be used to online reconfigure the parameters. Example usage:
 
-        rosservice call /elevation_mapping/reload_parameters {}
+        ros2 service call /elevation_mapping/reload_parameters std_srvs/srv/Trigger {}
 
 * **`disable_updates`** ([std_srvs/Empty])
 
     Stops updating the elevation map with sensor input. Trigger the update stopping with
 
-        rosservice call /elevation_mapping/disable_updates {}
+        ros2 service call /elevation_mapping/disable_updates std_srvs/srv/Empty {}
 
 * **`enable_updates`** ([std_srvs/Empty])
 
     Start updating the elevation map with sensor input. Trigger the update starting with
 
-        rosservice call /elevation_mapping/enable_updates {}
+        ros2 service call /elevation_mapping/enable_updates std_srvs/srv/Empty {}
 
 #### Parameters
 
@@ -389,13 +371,8 @@ This is the main Robot-Centric Elevation Mapping node. It uses the distance sens
 
     The name of the pipeline to execute for postprocessing. It expects a pipeline configuration to be loaded in the private namespace of the node under this name. 
     E.g.:
-    ```
-      <node pkg="elevation_mapping" type="elevation_mapping" name="elevation_mapping" output="screen">
-          ...
-          <rosparam command="load" file="$(find elevation_mapping_demos)/config/postprocessor_pipeline.yaml" />
-      </node>
-    ```
-    A pipeline is a grid_map_filter chain, see grid_map_demos/filters_demo.yaml and [ros / filters](http://wiki.ros.org/filters) for more information. 
+    Load `config/postprocessing/postprocessor_pipeline.yaml` through a ROS 2 launch `Node(parameters=[...])` entry.
+    A pipeline is a grid_map_filter chain, see grid_map_demos/filters_demo.yaml and the `filters` package for more information.
 
 * **`postprocessor_num_threads`** (int, default: 1, min: 1)
 
@@ -448,12 +425,12 @@ See [Changelog]
 Please report bugs and request features using the [Issue Tracker](https://github.com/anybotics/elevation_mapping/issues).
 
 [Changelog]: CHANGELOG.rst
-[ROS]: http://www.ros.org
-[rviz]: http://wiki.ros.org/rviz
+[ROS]: https://www.ros.org
+[rviz]: https://docs.ros.org/en/rolling/p/rviz2/
 [grid_map_msgs/GridMap]: https://github.com/anybotics/grid_map/blob/master/grid_map_msgs/msg/GridMap.msg
 [sensor_msgs/PointCloud2]: http://docs.ros.org/api/sensor_msgs/html/msg/PointCloud2.html
 [geometry_msgs/PoseWithCovarianceStamped]: http://docs.ros.org/api/geometry_msgs/html/msg/PoseWithCovarianceStamped.html
-[tf/tfMessage]: http://docs.ros.org/kinetic/api/tf/html/msg/tfMessage.html
+[tf2_msgs/TFMessage]: https://docs.ros.org/en/rolling/p/tf2_msgs/interfaces/msg/TFMessage.html
 [std_srvs/Empty]: http://docs.ros.org/api/std_srvs/html/srv/Empty.html
 [grid_map_msgs/GetGridMap]: https://github.com/anybotics/grid_map/blob/master/grid_map_msgs/srv/GetGridMap.srv
 [grid_map_msgs/ProcessFile]: https://github.com/ANYbotics/grid_map/blob/master/grid_map_msgs/srv/ProcessFile.srv
